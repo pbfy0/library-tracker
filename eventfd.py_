@@ -1,0 +1,29 @@
+import ctypes
+import os
+import struct
+import selectors
+
+libc = ctypes.CDLL('libc.so.6', use_errno=True)
+
+class EventFD:
+	def __init__(self):
+		self.fd = libc.eventfd(0, 0)
+		self.select = selectors.DefaultSelector()
+		self.select.register(self.fd, selectors.EVENT_READ)
+	def is_set(self):
+		return len(self.select.select(0)) > 0
+	def clear(self):
+		buf = ctypes.c_buffer(8)
+		print(libc.recv(self.fd, buf, 8, 64)) # MSG_DONTWAIT
+		print(ctypes.get_errno())
+	def set(self):
+		os.write(self.fd, struct.pack('=Q', 1))
+	def wait(self, timeout=None):
+		if timeout is None:
+			os.read(self.fd, 8)
+			return True
+		return len(self.select.select(timeout)) > 0
+	def fileno(self):
+		return self.fd
+	def __del__(self):
+		os.close(self.fd)
